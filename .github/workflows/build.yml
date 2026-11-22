@@ -1,0 +1,65 @@
+name: Build PyInstaller Artifact
+
+on:
+  workflow_dispatch:
+    inputs:
+      target_os:
+        description: "Runner OS (windows-latest or ubuntu-latest)"
+        required: true
+        default: "windows-latest"
+        type: choice
+        options:
+          - windows-latest
+          - ubuntu-latest
+      bundle_mode:
+        description: "PyInstaller mode (--onefile or --onedir)"
+        required: true
+        default: "--onefile"
+        type: choice
+        options:
+          - --onefile
+          - --onedir
+
+jobs:
+  build:
+    runs-on: ${{ inputs.target_os || 'windows-latest' }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+
+      - name: Install dependencies
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f "build ff/requirements.txt" ]; then
+            pip install -r "build ff/requirements.txt"
+          elif [ -f "requirements.txt" ]; then
+            pip install -r requirements.txt
+          fi
+          pip install pyinstaller
+
+      - name: Build with PyInstaller
+        shell: bash
+        run: |
+          WORKDIR="build ff"
+          if [ ! -d "$WORKDIR" ]; then
+            WORKDIR="."
+          fi
+          cd "$WORKDIR"
+          python -m PyInstaller --clean --noconfirm "${{ inputs.bundle_mode || '--onefile' }}" --name "Discord Token Gen" "main.py"
+
+      - name: Upload build artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: discord-token-gen-${{ runner.os }}
+          path: |
+            build ff/dist/
+            dist/
+          if-no-files-found: warn
